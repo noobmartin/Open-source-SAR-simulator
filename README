@@ -54,6 +54,6 @@ The math and complex libraries are usually included in Linux.
 The complex library is needed since the simulator operates on complex numbers.
 
 ------- Compilation -------
-Before you compile, check the flags set to the C compiler in compile.sh
+Before you compile, check the flags set to the C compiler in Makefile
 Some of the flags may not be applicable to your processor or compiler version.
 The simulator has been successfully compiled using gcc 4.5.3-r2 on Gentoo Linux on an Intel Core i5-2410M CPU.
