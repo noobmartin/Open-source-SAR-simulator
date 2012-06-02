@@ -35,7 +35,7 @@ void gbp(data_arrays* data, radar_variables* variables){
     }
   }
 
-  normalize_image(data->sar_image, variables->nrows, variables->ncols);
+  //normalize_image(data->sar_image, variables->nrows, variables->ncols);
 
 }
 
@@ -75,6 +75,7 @@ void radar_imager(data_arrays* data, radar_variables* variables){
 
   printf("Antenna beam covers %f meters, %i columns.\n", azimuth_coverage, beamcrossrange);
 
+  /*
   unsigned int i,j,k;
   unsigned int dist;
   int beam_value;
@@ -94,6 +95,29 @@ void radar_imager(data_arrays* data, radar_variables* variables){
       }
     }
   }
+  */
+  
+  unsigned int i;
+
+  for(i = 0; i < variables->ncols/2; i++){
+    unsigned int dist = sqrt(pow(variables->ncols/2-i,2)+pow(variables->nrows/2-variables->chirp_length/2,2));
+    if(dist+variables->chirp_length < variables->nrows){
+      memcpy(&data->undistorted_radar_image[i*variables->nrows+dist], data->chirp_signal, variables->chirp_length*sizeof(complex double));
+      unsigned int j = 0;
+      for(j = 0; j < variables->chirp_length; j++)
+        data->undistorted_radar_image[i*variables->nrows+dist+j] /= pow(dist,4);
+    }
+  }
+
+  for(i = variables->ncols/2; i < variables->ncols; i++){
+    unsigned int dist = sqrt(pow(i-variables->ncols/2,2)+pow(variables->nrows/2-variables->chirp_length/2,2));
+    if(dist+variables->chirp_length < variables->nrows){
+      memcpy(&data->undistorted_radar_image[i*variables->nrows+dist], data->chirp_signal, variables->chirp_length*sizeof(complex double));
+      unsigned int j = 0;
+      for(j = 0; j < variables->chirp_length; j++)
+        data->undistorted_radar_image[i*variables->nrows+dist+j] /= pow(dist,4);
+    }
+  }
 
   if(!data->radar_image){
     data->radar_image = malloc(variables->nrows*variables->ncols*sizeof(complex double));
@@ -106,9 +130,12 @@ void insert_waveform_in_scene(data_arrays* data, radar_variables* variables){
 	data->scene_with_waveform = malloc(variables->ncols*variables->nrows*sizeof(double complex));
 	int i;
 	for(i = 0; i < variables->chirp_length; i++){
+	  //data->scene_with_waveform[ (int)(variables->ncols/2)*variables->nrows + (int)(variables->nrows/2) -variables->chirp_length/2 +i] = data->pulse_compressed_waveform[i];
 	  data->scene_with_waveform[ (int)(variables->ncols/2)*variables->nrows + (int)(variables->nrows/2) -variables->chirp_length/2 +i] = data->chirp_signal[i];
 	  //data->scene_with_waveform[ (int)(variables->ncols/4)*variables->nrows + (int)(variables->nrows/2) -variables->chirp_length/2 +i] = data->chirp_signal[i];
 	}
+	//data->scene_with_waveform[(int)(variables->ncols/2)*variables->nrows + (int)(variables->nrows/2)] = 1;
+	//
 }
 
 /* Pulse compression of a single waveform (it's nice to look at the plots to see that pulse compression works).
@@ -116,7 +143,7 @@ void insert_waveform_in_scene(data_arrays* data, radar_variables* variables){
  */
 void pulse_compress_signal(data_arrays* data, radar_variables* variables){
   data->pulse_compressed_waveform = malloc(variables->chirp_length*sizeof(double complex));
-  int kernel_length = variables->chirp_length;
+  unsigned int kernel_length = variables->chirp_length;
   unsigned int filter_length = 2*kernel_length;
 
   fftw_complex* padded_signal = fftw_malloc(filter_length*sizeof(fftw_complex));
@@ -136,12 +163,17 @@ void pulse_compress_signal(data_arrays* data, radar_variables* variables){
   memcpy(padded_signal, data->chirp_signal, kernel_length*sizeof(fftw_complex));
   memcpy(padded_kernel, data->matched_chirp, kernel_length*sizeof(fftw_complex));
 
+  int i;
+  for(i = 0; i < filter_length; i++){
+    padded_signal[i] /= filter_length;
+    padded_kernel[i] /= filter_length;
+  }
+
   fftw_execute(sigp);
   fftw_execute(matchp);
 
-  int i;
   for(i = 0; i < filter_length; i++)
-    product[i] = sigfft[i]*matchfft[i];
+    product[i] = sigfft[i]*pow(-1,i)*conj(sigfft[i]);
 
   fftw_execute(iff);
 
@@ -152,6 +184,7 @@ void pulse_compress_signal(data_arrays* data, radar_variables* variables){
   fftw_free(sigfft);
   fftw_free(matchfft);
   fftw_free(product);
+
 }
 
 /* Convolution of the entire radar image with the matched waveform, again implemented with the FFT.
@@ -178,6 +211,11 @@ void pulse_compress_image(data_arrays* data, radar_variables* variables){
   memset(kernel_fft, 0, filter_length*sizeof(fftw_complex));
   memcpy(padded_kernel, data->matched_chirp, kernel_length*sizeof(fftw_complex));
 
+  // Normalize before FFT.
+  for(z = 0; z < kernel_length; z++){
+    padded_kernel[z] /= filter_length;
+  }
+
   // Compute fft of filter kernel.
   fftw_plan kernelfft = fftw_plan_dft_1d(filter_length, padded_kernel, kernel_fft, FFTW_FORWARD, FFTW_ESTIMATE);
   fftw_execute(kernelfft);
@@ -197,6 +235,11 @@ void pulse_compress_image(data_arrays* data, radar_variables* variables){
     output_column = &data->pulse_compressed_radar_image[i*variables->nrows];
     memset(padded_column, 0, filter_length*sizeof(fftw_complex));
     memcpy(padded_column, column, variables->nrows*sizeof(fftw_complex));
+
+    // Normalize before FFT.
+    for(z = 0; z < filter_length; z++)
+      padded_column[z] /= filter_length;
+
     memset(padded_column_fft, 0, filter_length*sizeof(fftw_complex));
     fftw_plan colfft = fftw_plan_dft_1d(filter_length, padded_column, padded_column_fft, FFTW_FORWARD, FFTW_ESTIMATE);
     fftw_execute(colfft);
@@ -213,7 +256,7 @@ void pulse_compress_image(data_arrays* data, radar_variables* variables){
     fftw_destroy_plan(colifft);
 
     // Re-normalize ifft output.
-    normalize_image(output_column, variables->nrows, 1);
+    //normalize_image(output_column, variables->nrows, 1);
   }
 
   fftw_free(product);
@@ -222,4 +265,75 @@ void pulse_compress_image(data_arrays* data, radar_variables* variables){
   fftw_free(padded_kernel);
 
   fftw_destroy_plan(kernelfft);
+
+}
+
+void pulse_compress_scene(data_arrays* data, radar_variables* variables){
+  double complex* pc_scene = malloc(variables->nrows*variables->ncols*sizeof(double complex));
+  
+  // Make sure input has valid values.
+  int kernel_length = variables->chirp_length;
+  int z;
+  for(z = 0; z < kernel_length; z++){
+    if(isnan(data->matched_chirp[z]))
+      data->matched_chirp[z] = 0;
+  }
+
+  //normalize_image(data->radar_image, variables->nrows, variables->ncols);
+
+  unsigned int filter_length = variables->nrows + kernel_length;
+
+  fftw_complex* padded_kernel = fftw_malloc(filter_length*sizeof(fftw_complex));
+  fftw_complex* kernel_fft = fftw_malloc(filter_length*sizeof(fftw_complex));
+  fftw_complex* product = fftw_malloc(filter_length*sizeof(fftw_complex));
+  memset(padded_kernel, 0, filter_length*sizeof(fftw_complex));
+  memset(kernel_fft, 0, filter_length*sizeof(fftw_complex));
+  memcpy(padded_kernel, data->matched_chirp, kernel_length*sizeof(fftw_complex));
+
+  // Compute fft of filter kernel.
+  fftw_plan kernelfft = fftw_plan_dft_1d(filter_length, padded_kernel, kernel_fft, FFTW_FORWARD, FFTW_ESTIMATE);
+  fftw_execute(kernelfft);
+  fftw_complex* output_column;
+  fftw_complex* padded_column = fftw_malloc(filter_length*sizeof(fftw_complex));
+  fftw_complex* padded_column_fft = fftw_malloc(filter_length*sizeof(fftw_complex));
+  int i,j,k;
+  for(i = 0; i < variables->ncols; i++){
+    double complex* column = &data->scene_with_waveform[i*variables->nrows];
+
+    // Make sure we have valid values.
+    for(k = 0; k < variables->nrows; k++){
+	if(isnan(column[k]))
+	  column[k] = 0;
+    }
+
+    output_column = &pc_scene[i*variables->nrows];
+    memset(padded_column, 0, filter_length*sizeof(fftw_complex));
+    memcpy(padded_column, column, variables->nrows*sizeof(fftw_complex));
+    memset(padded_column_fft, 0, filter_length*sizeof(fftw_complex));
+    fftw_plan colfft = fftw_plan_dft_1d(filter_length, padded_column, padded_column_fft, FFTW_FORWARD, FFTW_ESTIMATE);
+    fftw_execute(colfft);
+
+
+    for(j = 0; j < filter_length; j++){
+	product[j] = padded_column_fft[j]*kernel_fft[j];
+    }
+
+    fftw_plan colifft = fftw_plan_dft_1d(variables->nrows, product, output_column, FFTW_BACKWARD, FFTW_ESTIMATE);
+    fftw_execute(colifft);
+
+    fftw_destroy_plan(colfft);
+    fftw_destroy_plan(colifft);
+
+    // Re-normalize ifft output.
+    //normalize_image(output_column, variables->nrows, 1);
+  }
+
+  fftw_free(product);
+  fftw_free(padded_column_fft);
+  fftw_free(padded_column);
+  fftw_free(padded_kernel);
+
+  fftw_destroy_plan(kernelfft);
+
+  memcpy(data->scene_with_waveform, pc_scene, variables->ncols*variables->nrows*sizeof(double complex));
 }
