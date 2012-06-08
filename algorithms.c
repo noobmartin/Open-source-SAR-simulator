@@ -20,16 +20,21 @@ void gbp(data_arrays* data, radar_variables* variables){
   }
 
   data->sar_image = malloc(variables->nrows*variables->ncols*sizeof(double complex));
-  int j,k,l;
-  for(j = 0; j < variables->ncols; j++){
-    for(k = 0; k < variables->nrows; k++){
-      for(l = 0; l < variables->ncols; l++){
-	unsigned int range_index = sqrt((l-j)*(l-j)+k*k);
-	if(range_index < variables->nrows){
-	  data->sar_image[j*variables->nrows+k] += data->pulse_compressed_radar_image[l*variables->nrows+range_index]/variables->nrows;
-	  if(isnan(data->sar_image[j*variables->nrows+k])){
-	    data->sar_image[j*variables->nrows+k] = 0;
-	  }
+  unsigned int j,k,l;
+  unsigned int range_index;
+  unsigned int cols = variables->ncols;
+  unsigned int rows = variables->nrows;
+  complex double* sar_image = data->sar_image;
+  complex double* radar_image = data->pulse_compressed_radar_image;
+  for(j = 0; j < cols; j++){
+    for(k = 0; k < rows; k++){
+      for(l = 0; l < cols; l++){
+	range_index = sqrt((l-j)*(l-j)+k*k);
+	if(range_index < rows){
+	  sar_image[j*rows+k] += radar_image[l*rows+range_index];
+	  //if(isnan(data->sar_image[j*variables->nrows+k])){
+	    //data->sar_image[j*variables->nrows+k] = 0;
+	  //}
 	}
       }
     }
@@ -56,6 +61,12 @@ void gbp_fft(data_arrays* data, radar_variables* variables){
   fftw_plan fft = fftw_plan_dft_2d(variables->ncols, variables->nrows, data->sar_img_shifted, data->sar_fft, FFTW_FORWARD, FFTW_ESTIMATE);
   fftw_execute(fft);
   fftw_destroy_plan(fft);
+
+  for(i = 0; i < variables->ncols; i++){
+    for(j = 0; j < variables->nrows; j++){
+      data->sar_fft[i*variables->nrows+j] /= (variables->ncols*variables->nrows);
+    }
+  }
 }
 
 /* This algorithm is designed by me, and simulates scanning over a scene.
@@ -96,7 +107,7 @@ void radar_imager(data_arrays* data, radar_variables* variables){
     }
   }
   */
-  
+ 
   unsigned int i;
 
   for(i = 0; i < variables->ncols/2; i++){
