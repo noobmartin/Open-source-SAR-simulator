@@ -10,6 +10,7 @@
  * Tha ALE is controlled by the beta, epsilon, n_naught, and filter length parameters, and may be adjusted to achieve the desired effect.
  * Other RFI filtering approaches may be implemented and tested.
  */
+/*
 void rfi_suppression(data_arrays* data, radar_variables* variables){
   double beta = 0.3;
   double epsilon = 100000000;
@@ -18,7 +19,7 @@ void rfi_suppression(data_arrays* data, radar_variables* variables){
   double w[filter_length];
   memset(w, 0, filter_length*sizeof(double));
 
-  normalize_image(data->radar_image, variables->nrows, variables->ncols);
+  //normalize_image(data->radar_image, variables->nrows, variables->ncols);
 
   double complex* filtered_image;
   filtered_image = malloc(variables->ncols*variables->nrows*sizeof(complex double));
@@ -50,7 +51,7 @@ void rfi_suppression(data_arrays* data, radar_variables* variables){
 	}
   }
 
-  normalize_image(filtered_image, variables->nrows, variables->ncols);
+  //normalize_image(filtered_image, variables->nrows, variables->ncols);
 
   // Save un-filtered image.
   data->unfiltered_radar_image = malloc(variables->ncols*variables->nrows*sizeof(complex double));
@@ -60,8 +61,10 @@ void rfi_suppression(data_arrays* data, radar_variables* variables){
 
   free(filtered_image);
 }
+*/
 
 // Not fully implemented yet - ignore this function and do not run it during the simulation.
+/*
 void apodize_sar_fft(data_arrays* data, radar_variables* variables){
   generate_phi_filter(data, variables, HANNING);
   generate_k_filter(data, variables, HANNING);
@@ -145,8 +148,10 @@ void apodize_sar_fft(data_arrays* data, radar_variables* variables){
   fftw_destroy_plan(sar_ifft_plan);
   
 }
+*/
 
 // Generate filter coefficients for the apodization.
+/*
 void generate_k_filter(data_arrays* data, radar_variables* variables, FILTER_TYPE type){
   variables->k_filter_length = variables->nrows;
   data->k_filter = malloc(variables->k_filter_length*sizeof(complex double));
@@ -170,8 +175,10 @@ void generate_k_filter(data_arrays* data, radar_variables* variables, FILTER_TYP
     	break;
   }
 }
+*/
 
 // Generate filter coefficients for the apodization.
+/*
 void generate_phi_filter(data_arrays* data, radar_variables* variables, FILTER_TYPE type){
   variables->phi_filter_length = variables->nrows;
   data->phi_filter = malloc(variables->phi_filter_length*sizeof(complex double));
@@ -195,24 +202,12 @@ void generate_phi_filter(data_arrays* data, radar_variables* variables, FILTER_T
     	break;
   }
 }
-
-// This just removes the DC component from the image since the simulator generates a DC offset.
-void filter_dc(data_arrays* data, radar_variables* variables){
-  int i,j;
-  for(i = variables->ncols/2 - 2; i < variables->ncols/2+2; i++){
-    for(j = variables->nrows/2 - 2; j < variables->nrows/2 + 2; j++){
-	data->sar_fft[i*variables->nrows+j] = 0;
-    }
-  }
-
-  fftw_plan ifft = fftw_plan_dft_2d(variables->ncols, variables->nrows, data->sar_fft, data->sar_image, FFTW_BACKWARD, FFTW_ESTIMATE);
-  fftw_execute(ifft);
-  fftw_destroy_plan(ifft);
-}
+*/
 
 /* Although the GSM signal is continuous in nature, this "filter" mimics a stochastic GSM signal.
  * The generated GSM signal is simply added to the radar image.
  */
+/*
 void generate_gsm_interference(data_arrays* data, radar_variables* variables){
 	// b[n] -> [P] -> r[n] -> [G] -> g[n] -> [S] -> phi[n] -> [cos] -> y[n]
 
@@ -252,7 +247,7 @@ void generate_gsm_interference(data_arrays* data, radar_variables* variables){
 	complex double* padded_gaussian_filter = malloc(filter_length*sizeof(complex double));
 	memset(padded_gaussian_filter, 0, filter_length*sizeof(complex double));
 	for(i = 0; i < gaussian_filter_length; i++)
-	  padded_gaussian_filter[i] = gaussian_filter[i];
+	  padded_gaussian_filter[i] = gaussian_filter[i]/filter_length; // Pre-FFT normalization included.
 
 	fftw_complex* gaussian_filter_fft = fftw_malloc(filter_length*sizeof(fftw_complex));
 	fftw_plan gaussian_filter_fft_plan = fftw_plan_dft_1d(filter_length, padded_gaussian_filter, gaussian_filter_fft, FFTW_FORWARD, FFTW_ESTIMATE);
@@ -264,6 +259,10 @@ void generate_gsm_interference(data_arrays* data, radar_variables* variables){
 	memcpy(bsig_padded, bsig, variables->nrows*variables->ncols*sizeof(complex double));
 
 	fftw_complex* bsig_fft = fftw_malloc(filter_length*sizeof(fftw_complex));
+	// Pre-FFT normalization.
+	for(i = 0; i < filter_length; i++)
+	  bsig_padded[i] /= filter_length;
+
 	fftw_plan bsig_fft_plan = fftw_plan_dft_1d(filter_length, bsig_padded, bsig_fft, FFTW_FORWARD, FFTW_ESTIMATE);
 	fftw_execute(bsig_fft_plan);
 	fftw_destroy_plan(bsig_fft_plan);
@@ -313,6 +312,7 @@ void generate_gsm_interference(data_arrays* data, radar_variables* variables){
 	free(phase);
 	free(gsm_signal);
 }
+*/
 
 /* In the processing stages in the simulator, amplitudes may rise dangerously high and cause overflow if not compensated for.
  * This code simply normalizes the input image by the mean.

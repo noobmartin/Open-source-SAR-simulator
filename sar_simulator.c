@@ -18,12 +18,13 @@
  */
 
 #include "sar_simulator.h"
+#include "cinsnowfilters.h"
 
 int main(int argc, char** argv){
   radar_variables variables;
-  data_arrays data;
- 
-  memset(&data, 0, sizeof(data_arrays));
+  matrix* data = malloc(sizeof(matrix)); 
+  memset(data, 0, sizeof(matrix));
+  strcpy(data->name, "metadata");
 
   printf("Do you wish to simulate or process radar data? (s/p): ");
   variables.mode = getchar();
@@ -33,171 +34,89 @@ int main(int argc, char** argv){
     ret = scanf("%s", variables.radar_data_filename);
     if(ret == EOF){
 	printf("Invalid input detected, closing.\n");
-	return;
+	return 0;
     }
-    if(!read_radar_file(&data, &variables)){
+    if(!read_radar_file(data, &variables)){
 	printf("Failed to read radar data, closing.\n");
-	return;
+	return 0;
     }
-    process_data(&data, &variables);
+    process_data(data, &variables);
   }
   else if(variables.mode == 's'){
+    /*
     printf("Simulate with real or complex values? (r/c): ");
     ret = scanf("%s", variables.real_or_complex_simulation);
     if(*variables.real_or_complex_simulation != 'r')
       *variables.real_or_complex_simulation = 'c';
+    */
 
-    printf("Antenna azimuth beamwidth in radians: ");
-    ret = scanf("%f", &variables.beamwidth);
-
-    printf("Chirp start frequency: ");
-    ret = scanf("%li", &variables.start_frequency);
-
-    if(variables.start_frequency < 0){
-	printf("Negative start frequency entered, closing.\n");
-	return;
-    }
-
-    printf("Chirp bandwidth: ");
-    ret = scanf("%li", &variables.bandwidth);
-
-    if(variables.bandwidth < 0){
-	printf("Negative bandwidth entered, closing.\n");
-	return;
-    }
-
-    printf("Chirp bandwidth-time product: ");
-    ret = scanf("%u", &variables.btproduct);
-    
-    if(variables.btproduct < 1){
-	printf("Too small BT-product entered, closing.\n");
-	return;
-    }
-
-    ret = simulate(&data, &variables);
+    ret = simulate(data, &variables);
     if(ret == -1)
-      return;
-    process_data(&data, &variables);
+      return 0;
+    process_data(data, &variables);
   }
   else{
     printf("Mode not recognized - exiting.\n");
-    return;
+    return 0;
   }
 
-  printf("Number of rows in final scene: %i\n", variables.nrows);
-  printf("Number of columns in final scene: %i\n", variables.ncols);
-  printf("Number of complex points: %i\n",variables.ncols*variables.nrows);
-  printf("Uncompressed pulse resolution: %fm\n", variables.signal_distance);
+  build_metadata(data, &variables);
 
-  if(*variables.real_or_complex_simulation == 'c'){
-    ret = write_complex_data(&data, &variables);
-  }
-  else{
-    ret = write_real_data(&data, &variables);
-  }
+  ret = write_data(data, &variables);
+ 
+  //free_memory(data);
 
+  return 0;
 }
 
-void free_memory(data_arrays* data){
-  if(data->chirp_time_vector)
-    free(data->chirp_time_vector);
-  if(data->matched_time_vector)
-    free(data->matched_time_vector);
-  if(data->chirp_fft)
-    free(data->chirp_fft);
-  if(data->matched_fft);
-    free(data->matched_fft);
-  if(data->pulse_compressed_waveform)
-    free(data->pulse_compressed_waveform);
-  if(data->chirp_signal)
-    free(data->chirp_signal);
-  if(data->matched_chirp)
-    free(data->matched_chirp);
-  if(data->scene_with_waveform)
-    free(data->scene_with_waveform);
-  if(data->undistorted_radar_image)
-    free(data->undistorted_radar_image);
-  if(data->radar_image)
-    free(data->radar_image);
-  if(data->unfiltered_radar_image)
-    free(data->unfiltered_radar_image);
-  if(data->pulse_compressed_radar_image)
-    free(data->pulse_compressed_radar_image);
-  if(data->sar_image)
-    free(data->sar_image);
-  if(data->sar_fft)
-    free(data->sar_fft);
-  if(data->sar_img_shifted)
-    free(data->sar_img_shifted);
+void free_memory(matrix* data_matrix){
+  matrix* ptr = data_matrix;
+  matrix* next = ptr->next;
+  while(ptr != NULL){
+    if(ptr->data != NULL)
+      free(ptr->data);
+    next = ptr->next;
+    free(ptr);
+    ptr = next;
+  }
 }
 
-int simulate(data_arrays* data, radar_variables* variables){
+int simulate(matrix* data, radar_variables* variables){
   chirp_generator(data, variables);
-  printf("Chirp generated.\n");
-
   chirp_matched_generator(data, variables);
-  printf("Matched chirp generated.\n");
+ 
+  matrix* meta_chirp = get_matrix(data, "chirp");
+  complex double* chirp = meta_chirp->data;
 
-  data->chirp_fft = malloc(variables->chirp_length*sizeof(complex double));
-  fft_waveform(variables->chirp_length, data->chirp_signal, data->chirp_fft);
-  printf("Chirp FFT generated.\n");
+  matrix* meta_match = get_matrix(data, "match");
+  complex double* match = meta_match->data;
 
-  data->matched_fft = malloc(variables->chirp_length*sizeof(complex double));
-  fft_waveform(variables->chirp_length, data->matched_chirp, data->matched_fft);
-  printf("Matched chirp FFT generated.\n");
+  matrix* meta_chirp_fft = get_last_node(data);
+  meta_chirp_fft->data = malloc(meta_chirp->rows*sizeof(complex double));
+  complex double* chirp_fft = meta_chirp_fft->data;
+  meta_chirp_fft->rows = meta_chirp->rows;
+  meta_chirp_fft->cols = meta_chirp->cols;
+  strcpy(meta_chirp_fft->name, "chirp_fft");
+
+  matrix* meta_match_fft = get_last_node(data);
+  meta_match_fft->data = malloc(meta_match->rows*sizeof(complex double));
+  complex double* match_fft = meta_match_fft->data;
+  meta_match_fft->rows = meta_chirp->rows;
+  meta_match_fft->cols = meta_chirp->cols;
+  strcpy(meta_match_fft->name, "match_fft");
+
+  fft_waveform(meta_chirp->rows, chirp, chirp_fft);
+  fft_waveform(meta_match->rows, match, match_fft);
 
   pulse_compress_signal(data, variables);
-  printf("Pulse-compressed single chirp signal.\n");
-
+  
   printf("Compressed pulse resolution: %lfm\n", calculate_compressed_pulse_resolution(data, variables));
-  
-  printf("The target will be placed in the middle of the simulated area.\n");
-  printf("Enter area azimuth length (m): ");
-  float len = 0;
-  int ret = 0;
-  ret = scanf("%f", &len);
-  variables->ncols = len*variables->chirp_length/variables->signal_distance;
-  if(variables->ncols < 2){
-    printf("Invalid azimuth length, exiting.\n");
-    return -1;
-  }
-  printf("Enter area range (m): ");
-  ret = scanf("%f", &len);
-  variables->nrows = len*variables->chirp_length/variables->signal_distance;
-  if(variables->nrows < variables->chirp_length){
-    printf("Too small range, exiting.\n");
-    return -1;
-  }
 
-  printf("Please input SAR platform height: ");
-  ret = scanf("%d", &variables->altitude);
-  if(ret == EOF){
-    printf("Invalid input detected, closing.\n");
-    return;
-  }
-  
-  printf("Do you want to simulate an object in the scene (y/n)? ");
-  char pc = 0;
-  do{
-    ret = scanf("%c", &pc);
-    if(pc == 'y')
-      break;
-    else if(pc == 'n')
-      break;
-  }while(1);
-  if(pc == 'y'){
-    printf("Inserting waveform(s) in scene ... ");
-    insert_waveform_in_scene(data, variables);
-    printf("done.\n");
-  }
+  insert_waveform_in_scene(data,variables);
 
-  printf("Scene range: %fm\n", variables->signal_distance*(variables->nrows/variables->chirp_length));
-  printf("Scene azimuth length: %fm\n", variables->signal_distance*(variables->ncols/variables->chirp_length));
-
-  printf("Running radar imager ... ");
   radar_imager(data, variables);
-  printf("done.\n");
 
+  /*
   printf("Do you want to simulate radio-frequency interference (y/n)? ");
   do{
     ret = scanf("%c", &pc);
@@ -211,12 +130,30 @@ int simulate(data_arrays* data, radar_variables* variables){
     generate_gsm_interference(data, variables);
     printf("done.\n");
   }
+  */
+
+  return 0;
 }
 
-void process_data(data_arrays* data, radar_variables* variables){
+void process_data(matrix* data, radar_variables* variables){
   char pc = 0;
   int ret;
 
+  printf("Do you want to employ CinSnow filtering to radar image (y/n)? ");
+  do{
+    ret = scanf("%c", &pc);
+    if(pc == 'y')
+      break;
+    else if(pc == 'n')
+      break;
+  }while(1);
+  if(pc == 'y'){
+    printf("Running CinSnow filters ... ");
+    cinsnowfilters(data, variables);
+    printf("done.\n");
+  }
+
+  /*
   printf("Do you want to employ RFI suppression (y/n)? ");
   do{
     ret = scanf("%c", &pc);
@@ -236,6 +173,7 @@ void process_data(data_arrays* data, radar_variables* variables){
 	memcpy(data->unfiltered_radar_image, data->radar_image, variables->ncols*variables->nrows*sizeof(complex double));
     }
   }
+  */
   
   printf("Do you want to enable pulse compression (y/n)? ");
   do{
@@ -250,36 +188,48 @@ void process_data(data_arrays* data, radar_variables* variables){
     pulse_compress_image(data, variables);
     printf("done.\n");
   }
-  else if(pc == 'n'){
-    data->pulse_compressed_radar_image = malloc(variables->nrows*variables->ncols*sizeof(complex double));
-    memcpy(data->pulse_compressed_radar_image, data->radar_image, variables->nrows*variables->ncols*sizeof(complex double));
-  }
   
-  printf("Running GBP ... ");
   gbp(data, variables);
-  printf("done.\n");
 
   printf("Generating 2D FFT of GBP image ... ");
   gbp_fft(data, variables);
   printf("done.\n");
+}
 
-  if(variables->mode == 's')
-    filter_dc(data, variables);
+matrix* get_matrix(matrix* data, const char* name){
+  if(data == NULL)
+    return NULL;
 
-  /*
-  printf("Do you want to apodize SAR image (y/n)? ");
+  matrix* ptr = data;
+  while(ptr != NULL){
+    if( (strcmp(name, ptr->name) == 0) )
+      return ptr;
+    ptr = ptr->next;
+  };
+  return NULL;
+}
+
+matrix* get_last_node(matrix* data){
+  if(data == NULL)
+    return NULL;
+  matrix* ptr = data;
   do{
-    ret = scanf("%c", &pc);
-    if(pc == 'y')
+    if(ptr->next == NULL)
       break;
-    else if(pc == 'n')
-      break;
+    ptr = ptr->next;
   }while(1);
 
-  if(pc == 'y'){
-    printf("Apodizing SAR image ... ");
-    apodize_sar_fft(data, variables);
-    printf("done.\n");
+  ptr->next = malloc(sizeof(matrix));
+  memset(ptr->next, 0, sizeof(matrix));
+  return ptr->next;
+}
+
+void build_metadata(matrix* data, radar_variables* variables){
+  matrix* ptr = data->next;
+  unsigned int elements = 0;
+  while(ptr != NULL){
+    elements++;
+    ptr = ptr->next;
   }
-  */
+  data->data = malloc(elements*sizeof(complex double));
 }
