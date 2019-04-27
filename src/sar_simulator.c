@@ -18,7 +18,6 @@
  */
 
 #include "sar_simulator.h"
-//#include "cinsnowfilters.h"
 
 int main(int argc, char** argv){
   radar_variables variables;
@@ -31,24 +30,21 @@ int main(int argc, char** argv){
   int ret;
   if(variables.mode == 'p'){
     printf("Please enter file name of raw data: ");
+
     ret = scanf("%s", variables.radar_data_filename);
     if(ret == EOF){
-	printf("Invalid input detected, closing.\n");
-	return 0;
+			printf("Invalid input detected, closing.\n");
+			return 0;
     }
+
     if(!read_radar_file(data, &variables)){
-	printf("Failed to read radar data, closing.\n");
-	return 0;
+			printf("Failed to read radar data, closing.\n");
+			return 0;
     }
+
     process_data(data, &variables);
   }
   else if(variables.mode == 's'){
-    /*
-    printf("Simulate with real or complex values? (r/c): ");
-    ret = scanf("%s", variables.real_or_complex_simulation);
-    if(*variables.real_or_complex_simulation != 'r')
-      *variables.real_or_complex_simulation = 'c';
-    */
 
     ret = simulate(data, &variables);
     if(ret == -1)
@@ -62,7 +58,7 @@ int main(int argc, char** argv){
 
   build_metadata(data, &variables);
 
-  ret = write_data(data, &variables);
+  write_data(data, &variables);
  
   //free_memory(data);
 
@@ -75,9 +71,10 @@ void free_memory(matrix* data_matrix){
   while(ptr != NULL){
     if(ptr->data != NULL)
       free(ptr->data);
-    next = ptr->next;
-    free(ptr);
-    ptr = next;
+
+		next = ptr->next;
+		free(ptr);
+		ptr = next;
   }
 }
 
@@ -116,73 +113,21 @@ int simulate(matrix* data, radar_variables* variables){
 
   radar_imager(data, variables);
 
-  /*
-  printf("Do you want to simulate radio-frequency interference (y/n)? ");
-  do{
-    ret = scanf("%c", &pc);
-    if(pc == 'y')
-      break;
-    else if(pc == 'n')
-      break;
-  }while(1);
-  if(pc == 'y'){
-    printf("Adding GSM interference ... ");
-    generate_gsm_interference(data, variables);
-    printf("done.\n");
-  }
-  */
-
   return 0;
 }
 
 void process_data(matrix* data, radar_variables* variables){
   char pc = 0;
-  int ret;
 
-  printf("Do you want to employ CinSnow filtering to radar image (y/n)? ");
-  do{
-    ret = scanf("%c", &pc);
-    if(pc == 'y')
-      break;
-    else if(pc == 'n')
-      break;
-  }while(1);
-  if(pc == 'y'){
-    printf("Running CinSnow filters ... ");
-    //cinsnowfilters(data, variables);
-    printf("done.\n");
-  }
-
-  /*
-  printf("Do you want to employ RFI suppression (y/n)? ");
-  do{
-    ret = scanf("%c", &pc);
-    if(pc == 'y')
-      break;
-    else if(pc == 'n')
-      break;
-  }while(1);
-  if(pc == 'y'){
-    printf("Suppressing RFI ... ");
-    rfi_suppression(data, variables);
-    printf("done.\n");
-  }
-  else if(pc == 'n'){
-    if(!data->unfiltered_radar_image){
-	data->unfiltered_radar_image = malloc(variables->ncols*variables->nrows*sizeof(complex double));
-	memcpy(data->unfiltered_radar_image, data->radar_image, variables->ncols*variables->nrows*sizeof(complex double));
-    }
-  }
-  */
-  
   printf("Do you want to enable pulse compression (y/n)? ");
   do{
-    ret = scanf("%c", &pc);
+    scanf("%c", &pc);
     if(pc == 'y')
       break;
     else if(pc == 'n')
       break;
   }while(1);
+
   if(pc == 'y'){
     printf("Pulse-compressing image ... ");
     pulse_compress_image(data, variables);
@@ -197,21 +142,16 @@ void process_data(matrix* data, radar_variables* variables){
 }
 
 matrix* get_matrix(matrix* data, const char* name){
-  if(data == NULL)
-    return NULL;
-
   matrix* ptr = data;
   while(ptr != NULL){
     if( (strcmp(name, ptr->name) == 0) )
       return ptr;
     ptr = ptr->next;
-  };
+  }
   return NULL;
 }
 
 matrix* get_last_node(matrix* data){
-  if(data == NULL)
-    return NULL;
   matrix* ptr = data;
   do{
     if(ptr->next == NULL)

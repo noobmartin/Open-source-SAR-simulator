@@ -25,7 +25,7 @@ int write_data(matrix* data_matrix, radar_variables* variables){
   FILE* dimensions;
   matrix* data_ptr = data_matrix;
   char filename[255];
-  dimensions = fopen("dimensions.dat", "w");
+  dimensions = fopen("output/dimensions.dat", "w");
   while(data_ptr != NULL){
     memset(filename, 0, 255);
     strcat(filename, data_ptr->name);
@@ -60,10 +60,6 @@ int read_radar_file(matrix* data, radar_variables* variables){
   if(fp == NULL)
     return -1;
 
-  //fseek(fp, 0L, SEEK_END);
-  //unsigned int file_size = ftell(fp);
-  //fseek(fp, 0L, SEEK_SET);
-  
   radar_metadata meta;
   
   int ret;
@@ -83,29 +79,21 @@ int read_radar_file(matrix* data, radar_variables* variables){
   memset(meta_radar->data, 0, meta.rows*meta.cols*sizeof(complex double));
   complex double* radar_image = meta_radar->data;
 
-  //FILE* mp = fopen("radar_metadata", "r");
-  //ret = fread(&meta, sizeof(radar_metadata), 1, mp);
-
-  //fclose(mp);
-
-
   int i,j;
   unsigned int real;
   complex double imag;
   if(meta.real_or_complex == 'r'){
-      for(j = 0; j < meta.cols; j++){
-    for(i = 0; i < meta.rows; i++){
-        //ret = fread(data->radar_image + i*sizeof(complex double), sizeof(double), 1, fp);
-	ret = fscanf(fp, "%u", &real);
-	imag = real + _Complex_I*0;
-	radar_image[j*meta.rows+i] = imag;
+    for(j = 0; j < meta.cols; j++){
+      for(i = 0; i < meta.rows; i++){
+			  ret = fscanf(fp, "%u", &real);
+			  imag = real + _Complex_I*0;
+			  radar_image[j*meta.rows+i] = imag;
       }
     }
   }
   else if(meta.real_or_complex == 'c'){
-      for(j = 0; j < meta.rows; j++){
-    for(i = 0; i < meta.rows*meta.cols; i++){
-      //ret = fread(data->radar_image + i*sizeof(complex double), sizeof(complex double), 1, fp);
+    for(j = 0; j < meta.rows; j++){
+      for(i = 0; i < meta.rows*meta.cols; i++){
         ret = fscanf(fp, "%lf", (double*)(  &radar_image[i*meta.rows+j]  ));
       }
     }

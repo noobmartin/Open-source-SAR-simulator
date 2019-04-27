@@ -4,7 +4,6 @@
  */
 
 #include "sar_simulator.h"
-#include "cinsnowfilters.h"
 #include <time.h>
 
 /* GBP is the main SAR image formation (or de-skewness algorithm as I like to call it).
@@ -14,13 +13,8 @@
  * The downside of GBP is its processing time, which is in the order of O(N^3).
  */
 void gbp(matrix* data, radar_variables* variables){
-  printf("Which GBP implementation would you like to employ?\n");
-  printf("1) Without interpolation\n");
-  printf("2) With linear interpolation (upsampling)\n");
-  printf("3) With linear interpolation (decimation)\n");
-  printf("4) With linear interpolation (upsampling) after GBP\n");
-
   matrix* meta_radar_image;
+
   if(variables->mode == 'p')
     meta_radar_image = get_matrix(data, "radar_image");
   else
@@ -28,351 +22,37 @@ void gbp(matrix* data, radar_variables* variables){
 
   matrix* meta_sar_image = get_last_node(data);
   strcpy(meta_sar_image->name, "sar_image");
+
   complex double* radar_image = meta_radar_image->data;
-  complex double* sar_image = NULL;
+  complex double* sar_image   = NULL;
 
-  if(radar_image == NULL)
-    return;
+	meta_sar_image->rows = meta_radar_image->rows;
+	meta_sar_image->cols = meta_radar_image->cols;
+	meta_sar_image->data = malloc(meta_sar_image->rows*meta_sar_image->cols*sizeof(double complex));
 
-  unsigned int algorithm = 0;
-  int ret = 0;
+	sar_image = meta_sar_image->data;
+
   unsigned int j,k,l;
   unsigned int range_index;
-  ret = scanf("%u", &algorithm);
-  if(algorithm == 1){
-  	printf("Running GBP without interpolation.\n");
-	  meta_sar_image->rows = meta_radar_image->rows;
-	  meta_sar_image->cols = meta_radar_image->cols;
-	  meta_sar_image->data = malloc(meta_sar_image->rows*meta_sar_image->cols*sizeof(double complex));
-	  sar_image = meta_sar_image->data;
-	  unsigned int cols = meta_sar_image->cols;
-	  unsigned int rows = meta_sar_image->rows;
-	  for(j = 0; j < cols; j++){
-	    for(k = 0; k < rows; k++){
-	      for(l = 0; l < cols; l++){
-		range_index = sqrt((l-j)*(l-j)+k*k);
-		if(range_index < rows){
-		  sar_image[j*rows+k] += radar_image[l*rows+range_index];
-		}
-	      }
-	    }
-	  printf("Pass %i of %i.\n", j, cols);
-  	}
-	printf("Done.\n");
-  }
-  else if(algorithm == 2){
-    printf("Please enter interpolation factor (integer): ");
-    unsigned int interp_factor;
-    ret = scanf("%i", &interp_factor);
+	unsigned int cols = meta_sar_image->cols;
+	unsigned int rows = meta_sar_image->rows;
 
-    printf("Interpolating ... ");
+  printf("Running GBP.\n");
 
-    meta_sar_image->rows = interp_factor*meta_radar_image->rows;
-    
-    // This is just for interpolation in range.
-    meta_sar_image->cols = meta_radar_image->cols;
+  for(j = 0; j < cols; j++){
+    printf("Pass %i of %i.\n", j, cols);
 
-    // This is for interpolation in azimuth aswell as range.
-    //meta_sar_image->cols = interp_factor*meta_radar_image->cols;
-
-    unsigned int sar_rows = meta_sar_image->rows;
-    unsigned int sar_cols = meta_sar_image->cols;
-
-    meta_sar_image->data = malloc(sar_rows*sar_cols*sizeof(complex double));
-    memset(meta_sar_image->data, 0, sar_rows*sar_cols*sizeof(complex double));
-
-    // Allocate memory for upsampled radar image.
-    complex double* upsamp_radar_image = malloc(sar_rows*sar_cols*sizeof(complex double));
-
-    // Insert radar image at interleaved positions.
-    unsigned int rows;
-    unsigned int cols;
-    for(cols = 0; cols < meta_radar_image->cols; cols++){
-      for(rows = 0; rows < meta_radar_image->rows; rows++){
-	// This is just for interpolation in range.
-	upsamp_radar_image[cols*sar_rows+rows*interp_factor] = radar_image[cols*meta_radar_image->rows+rows];
-
-	// This is for interpolation in azimuth aswell as range.
-	//upsamp_radar_image[cols*interp_factor*sar_rows+rows*interp_factor] = radar_image[cols*meta_radar_image->rows+rows];
+    for(k = 0; k < rows; k++){
+      for(l = 0; l < cols; l++){
+				range_index = sqrt((l-j)*(l-j)+k*k);
+				if(range_index < rows){
+					sar_image[j*rows+k] += radar_image[l*rows+range_index];
+				}
       }
     }
-    
-    // Create a tent filter and interpolate in range.
-    complex double* tent = malloc((2*interp_factor+1)*sizeof(complex double));
-    int tent_index;
-    for(tent_index = -(int)interp_factor; tent_index <= (int)interp_factor; tent_index++){
-      tent[tent_index+interp_factor] = (1-cabs((float)tent_index/(float)interp_factor) );
-    }
-
-    unsigned int tent_length = 2*interp_factor+1;
-    unsigned int filter_length = sar_rows + tent_length;
-    complex double* tent_fft = malloc(filter_length*sizeof(complex double));
-    complex double* padded_tent = malloc(filter_length*sizeof(complex double));
-    memset(padded_tent, 0, filter_length*sizeof(complex double));
-    memcpy(padded_tent, tent, tent_length*sizeof(complex double));
-    fftw_plan tent_fft_p = fftw_plan_dft_1d(filter_length, padded_tent, tent_fft, FFTW_FORWARD, FFTW_ESTIMATE);
-    fftw_execute(tent_fft_p);
-    fftw_destroy_plan(tent_fft_p);
-
-    complex double* padded_column = malloc(filter_length*sizeof(complex double));
-    complex double* padded_column_fft = malloc(filter_length*sizeof(complex double));
-    for(cols = 0; cols < sar_cols; cols++){
-      memset(padded_column, 0, filter_length*sizeof(complex double));
-      memcpy(padded_column, &upsamp_radar_image[cols*sar_rows], sar_rows*sizeof(complex double));
-      memset(padded_column_fft, 0, filter_length*sizeof(complex double));
-
-      fftw_plan column_fft_p = fftw_plan_dft_1d(filter_length, padded_column, padded_column_fft, FFTW_FORWARD, FFTW_ESTIMATE);
-      fftw_execute(column_fft_p);
-      fftw_destroy_plan(column_fft_p);
-
-      // Perform convolution.
-      for(rows = 0; rows < filter_length; rows++){
-	padded_column_fft[rows] *= (tent_fft[rows]/(filter_length*filter_length));
-      }
-
-      fftw_plan column_ifft_p = fftw_plan_dft_1d(sar_rows, padded_column_fft, &upsamp_radar_image[cols*sar_rows], FFTW_BACKWARD, FFTW_ESTIMATE);
-      fftw_execute(column_ifft_p);
-      fftw_destroy_plan(column_ifft_p);
-
-    }
-
-    free(padded_column);
-    free(padded_column_fft);
-    free(padded_tent);
-    free(tent_fft);
-  
-    
-    // Interpolate in azimuth.
-    /*
-    filter_length = sar_cols + tent_length;
-    padded_tent = malloc(filter_length*sizeof(complex double));
-    memset(padded_tent, 0, filter_length*sizeof(complex double));
-    memcpy(padded_tent, tent, tent_length*sizeof(complex double));
-    tent_fft = malloc(filter_length*sizeof(complex double));
-    tent_fft_p = fftw_plan_dft_1d(filter_length, padded_tent, tent_fft, FFTW_FORWARD, FFTW_ESTIMATE);
-
-    complex double* padded_row = malloc(filter_length*sizeof(complex double));
-    complex double* padded_row_fft= malloc(filter_length*sizeof(complex double));
-
-    for(rows = 0; rows < sar_rows; rows++){
-      memset(padded_row, 0, filter_length*sizeof(complex double));
-      memset(padded_row_fft, 0, filter_length*sizeof(complex double));
-      for(cols = 0; cols < sar_cols; cols++){
-	padded_row[cols] = upsamp_radar_image[cols*sar_rows+rows];
-      }
-      
-      fftw_plan row_fft_p = fftw_plan_dft_1d(filter_length, padded_row, padded_row_fft, FFTW_FORWARD, FFTW_ESTIMATE);
-      fftw_execute(row_fft_p);
-      fftw_destroy_plan(row_fft_p);
-
-      // Perform convolution.
-      for(cols = 0; cols < filter_length; cols++){
-	padded_row_fft[cols] *= (tent_fft[cols]/(filter_length*filter_length));
-      }
-      
-      fftw_plan row_ifft_p = fftw_plan_dft_1d(sar_cols, padded_row_fft, padded_row, FFTW_BACKWARD, FFTW_ESTIMATE);
-      fftw_execute(row_ifft_p);
-      fftw_destroy_plan(row_ifft_p);
-
-      for(cols = 0; cols < sar_cols; cols++){
-	upsamp_radar_image[cols*sar_rows+rows] = padded_row[cols];
-      }
-    }
-
-    free(padded_row_fft);
-    free(padded_row);
-    free(padded_tent);
-    free(tent_fft);
-    */
-
-    free(tent);
-
-    printf(" done.\n");
-
-    // Run GBP.
-    printf("Running GBP.\n");
-    printf("Total passes: %i\n", sar_cols);
-    for(j = 0; j < sar_cols; j++){
-      for(k = 0; k < sar_rows; k++){
-	for(l = 0; l < sar_cols; l++){
-	  range_index = sqrt((l-j)*(l-j)+k*k);
-	  if(range_index < sar_rows){
-	    meta_sar_image->data[j*sar_rows+k] += upsamp_radar_image[l*sar_rows+range_index];
-	  }
 	}
-      }
-      printf("Pass %i of %i.\n", j, sar_cols);
-    }
-    printf("Done.\n");
 
-    free(upsamp_radar_image);
-  }
-  else if(algorithm == 3){
-    printf("Please enter decimation factor (integer): ");
-    unsigned int dec_factor;
-    ret = scanf("%i", &dec_factor);
-
-    meta_sar_image->rows = meta_radar_image->rows/dec_factor;
-    meta_sar_image->cols = meta_radar_image->cols/dec_factor;
-
-    unsigned int sar_rows = meta_sar_image->rows;
-    unsigned int sar_cols = meta_sar_image->cols;
-
-    meta_sar_image->data = malloc(sar_rows*sar_cols*sizeof(complex double));
-  }
-  else if(algorithm == 4){
-    meta_sar_image->data = malloc(meta_radar_image->rows*meta_radar_image->cols*sizeof(complex double));
-    sar_image = meta_sar_image->data;
-    // Run GBP.
-    printf("Running GBP.\n");
-    printf("Total passes: %i\n", meta_radar_image->cols);
-    for(j = 0; j < meta_radar_image->cols; j++){
-      for(k = 0; k < meta_radar_image->rows; k++){
-	for(l = 0; l < meta_radar_image->cols; l++){
-	  range_index = sqrt((l-j)*(l-j)+k*k);
-	  if(range_index < meta_radar_image->rows){
-	    sar_image[j*meta_radar_image->rows+k] += radar_image[l*meta_radar_image->rows+range_index];
-	  }
-	}
-      }
-      printf("Pass %i of %i.\n", j, meta_radar_image->cols);
-    }
-    printf("Done.\n");
-    
-    printf("Please enter interpolation factor (integer): ");
-    unsigned int interp_factor;
-    ret = scanf("%i", &interp_factor);
-
-    printf("Interpolating ... ");
-
-    meta_sar_image->rows = interp_factor*meta_radar_image->rows;
-    
-    // This is just for interpolation in range.
-    meta_sar_image->cols = meta_radar_image->cols;
-
-    // This is for interpolation in azimuth aswell as range.
-    //meta_sar_image->cols = interp_factor*meta_radar_image->cols;
-
-    unsigned int sar_rows = meta_sar_image->rows;
-    unsigned int sar_cols = meta_sar_image->cols;
-
-    complex double* gbp_image = malloc(meta_radar_image->rows*meta_radar_image->cols*sizeof(complex double));
-    memcpy(gbp_image, sar_image, meta_radar_image->rows*meta_radar_image->cols*sizeof(complex double));
-    free(sar_image);
-
-    meta_sar_image->data = malloc(sar_rows*sar_cols*sizeof(complex double));
-    memset(meta_sar_image->data, 0, sar_rows*sar_cols*sizeof(complex double));
-
-    // Allocate memory for upsampled radar image.
-    complex double* upsamp_radar_image = meta_sar_image->data;
-
-    // Insert radar image at interleaved positions.
-    unsigned int rows;
-    unsigned int cols;
-    for(cols = 0; cols < meta_radar_image->cols; cols++){
-      for(rows = 0; rows < meta_radar_image->rows; rows++){
-	// This is just for interpolation in range.
-	upsamp_radar_image[cols*sar_rows+rows*interp_factor] = gbp_image[cols*meta_radar_image->rows+rows];
-
-	// This is for interpolation in azimuth aswell as range.
-	//upsamp_radar_image[cols*interp_factor*sar_rows+rows*interp_factor] = gbp_image[cols*meta_radar_image->rows+rows];
-      }
-    }
-   
-    free(gbp_image);
-
-    // Create a tent filter and interpolate in range.
-    complex double* tent = malloc((2*interp_factor+1)*sizeof(complex double));
-    int tent_index;
-    for(tent_index = -(int)interp_factor; tent_index <= (int)interp_factor; tent_index++){
-      tent[tent_index+interp_factor] = (1-cabs((float)tent_index/(float)interp_factor) );
-    }
-
-    unsigned int tent_length = 2*interp_factor+1;
-    unsigned int filter_length = sar_rows + tent_length;
-    complex double* tent_fft = malloc(filter_length*sizeof(complex double));
-    complex double* padded_tent = malloc(filter_length*sizeof(complex double));
-    memset(padded_tent, 0, filter_length*sizeof(complex double));
-    memcpy(padded_tent, tent, tent_length*sizeof(complex double));
-    fftw_plan tent_fft_p = fftw_plan_dft_1d(filter_length, padded_tent, tent_fft, FFTW_FORWARD, FFTW_ESTIMATE);
-    fftw_execute(tent_fft_p);
-    fftw_destroy_plan(tent_fft_p);
-
-    complex double* padded_column = malloc(filter_length*sizeof(complex double));
-    complex double* padded_column_fft = malloc(filter_length*sizeof(complex double));
-    for(cols = 0; cols < sar_cols; cols++){
-      memset(padded_column, 0, filter_length*sizeof(complex double));
-      memcpy(padded_column, &upsamp_radar_image[cols*sar_rows], sar_rows*sizeof(complex double));
-      memset(padded_column_fft, 0, filter_length*sizeof(complex double));
-
-      fftw_plan column_fft_p = fftw_plan_dft_1d(filter_length, padded_column, padded_column_fft, FFTW_FORWARD, FFTW_ESTIMATE);
-      fftw_execute(column_fft_p);
-      fftw_destroy_plan(column_fft_p);
-
-      // Perform convolution.
-      for(rows = 0; rows < filter_length; rows++){
-	padded_column_fft[rows] *= (tent_fft[rows]/(filter_length*filter_length));
-      }
-
-      fftw_plan column_ifft_p = fftw_plan_dft_1d(sar_rows, padded_column_fft, &upsamp_radar_image[cols*sar_rows], FFTW_BACKWARD, FFTW_ESTIMATE);
-      fftw_execute(column_ifft_p);
-      fftw_destroy_plan(column_ifft_p);
-
-    }
-
-    free(padded_column);
-    free(padded_column_fft);
-    free(padded_tent);
-    free(tent_fft);
-  
-    
-    // Interpolate in azimuth.
-    /*
-    filter_length = sar_cols + tent_length;
-    padded_tent = malloc(filter_length*sizeof(complex double));
-    memset(padded_tent, 0, filter_length*sizeof(complex double));
-    memcpy(padded_tent, tent, tent_length*sizeof(complex double));
-    tent_fft = malloc(filter_length*sizeof(complex double));
-    tent_fft_p = fftw_plan_dft_1d(filter_length, padded_tent, tent_fft, FFTW_FORWARD, FFTW_ESTIMATE);
-
-    complex double* padded_row = malloc(filter_length*sizeof(complex double));
-    complex double* padded_row_fft= malloc(filter_length*sizeof(complex double));
-
-    for(rows = 0; rows < sar_rows; rows++){
-      memset(padded_row, 0, filter_length*sizeof(complex double));
-      memset(padded_row_fft, 0, filter_length*sizeof(complex double));
-      for(cols = 0; cols < sar_cols; cols++){
-	padded_row[cols] = upsamp_radar_image[cols*sar_rows+rows];
-      }
-      
-      fftw_plan row_fft_p = fftw_plan_dft_1d(filter_length, padded_row, padded_row_fft, FFTW_FORWARD, FFTW_ESTIMATE);
-      fftw_execute(row_fft_p);
-      fftw_destroy_plan(row_fft_p);
-
-      // Perform convolution.
-      for(cols = 0; cols < filter_length; cols++){
-	padded_row_fft[cols] *= (tent_fft[cols]/(filter_length*filter_length));
-      }
-      
-      fftw_plan row_ifft_p = fftw_plan_dft_1d(sar_cols, padded_row_fft, padded_row, FFTW_BACKWARD, FFTW_ESTIMATE);
-      fftw_execute(row_ifft_p);
-      fftw_destroy_plan(row_ifft_p);
-
-      for(cols = 0; cols < sar_cols; cols++){
-	upsamp_radar_image[cols*sar_rows+rows] = padded_row[cols];
-      }
-    }
-
-    free(padded_row_fft);
-    free(padded_row);
-    free(padded_tent);
-    free(tent_fft);
-    */
-
-    free(tent);
-
-    printf(" done.\n");
-  }
+	printf("GBP done.\n");
 }
 
 /* To evaluate the quality of a simulated SAR image, one often looks at the spectrum of the GBP image.
@@ -380,9 +60,6 @@ void gbp(matrix* data, radar_variables* variables){
  */
 void gbp_fft(matrix* data, radar_variables* variables){
   matrix* meta_sar_image = get_matrix(data, "sar_image");
-
-  if(meta_sar_image == NULL)
-    return;
 
   unsigned int rows = meta_sar_image->rows;
   unsigned int cols = meta_sar_image->cols;
@@ -400,7 +77,7 @@ void gbp_fft(matrix* data, radar_variables* variables){
   unsigned int i, j;
   for(i = 0; i < cols; i++){
     for(j = 0; j < rows; j++){
-	sar_img_shifted[rows*i+j] = sar_image[rows*i+j]*pow(-1,i+j)/(cols*rows);
+			sar_img_shifted[rows*i+j] = sar_image[rows*i+j]*pow(-1,i+j)/(cols*rows);
     }
   }
   fftw_plan fft = fftw_plan_dft_2d(cols, rows, sar_img_shifted, meta_sar_fft->data, FFTW_FORWARD, FFTW_ESTIMATE);
@@ -729,7 +406,7 @@ void pulse_compress_image(matrix* data, radar_variables* variables){
 
 
     for(j = 0; j < filter_length; j++){
-	product[j] = padded_column_fft[j]*kernel_fft[j];
+			product[j] = padded_column_fft[j]*kernel_fft[j];
     }
 
     fftw_plan colifft = fftw_plan_dft_1d(rows, product, output_column, FFTW_BACKWARD, FFTW_ESTIMATE);
@@ -795,7 +472,7 @@ void pulse_compress_scene(matrix* data, radar_variables* variables){
 
 
     for(j = 0; j < filter_length; j++){
-	product[j] = padded_column_fft[j]*kernel_fft[j];
+			product[j] = padded_column_fft[j]*kernel_fft[j];
     }
 
     fftw_plan colifft = fftw_plan_dft_1d(rows, product, output_column, FFTW_BACKWARD, FFTW_ESTIMATE);
