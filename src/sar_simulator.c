@@ -26,13 +26,13 @@ int main(int argc, char** argv){
   strcpy(data->name, "metadata");
 
   printf("Do you wish to simulate or process radar data? (s/p): ");
-  variables.mode = getchar();
-  int ret;
-  if(variables.mode == 'p'){
+  
+  if(getchar() == 'p'){
+    variables.mode = Process;
+    
     printf("Please enter file name of raw data: ");
 
-    ret = scanf("%s", variables.radar_data_filename);
-    if(ret == EOF){
+    if(scanf("%s", variables.radar_data_filename) == EOF){
 			printf("Invalid input detected, closing.\n");
 			return 0;
     }
@@ -42,20 +42,15 @@ int main(int argc, char** argv){
 			return 0;
     }
 
-    process_data(data, &variables);
-  }
-  else if(variables.mode == 's'){
-
-    ret = simulate(data, &variables);
-    if(ret == -1)
-      return 0;
-    process_data(data, &variables);
   }
   else{
-    printf("Mode not recognized - exiting.\n");
-    return 0;
+    variables.mode = Simulate;
+    
+    simulate(data, &variables);
   }
 
+  process_data(data, &variables);
+  
   build_metadata(data, &variables);
 
   write_data(data, &variables);
@@ -69,8 +64,9 @@ void free_memory(matrix* data_matrix){
   matrix* ptr = data_matrix;
   matrix* next = ptr->next;
   while(ptr != NULL){
-    if(ptr->data != NULL)
+    if(ptr->data != NULL){
       free(ptr->data);
+    }
 
 		next = ptr->next;
 		free(ptr);
@@ -83,27 +79,22 @@ int simulate(matrix* data, radar_variables* variables){
   chirp_matched_generator(data, variables);
  
   matrix* meta_chirp = get_matrix(data, "chirp");
-  complex double* chirp = meta_chirp->data;
-
   matrix* meta_match = get_matrix(data, "match");
-  complex double* match = meta_match->data;
-
+  
   matrix* meta_chirp_fft = get_last_node(data);
-  meta_chirp_fft->data = malloc(meta_chirp->rows*sizeof(complex double));
-  complex double* chirp_fft = meta_chirp_fft->data;
-  meta_chirp_fft->rows = meta_chirp->rows;
-  meta_chirp_fft->cols = meta_chirp->cols;
+  meta_chirp_fft->data   = malloc(meta_chirp->rows*sizeof(complex double));
+  meta_chirp_fft->rows   = meta_chirp->rows;
+  meta_chirp_fft->cols   = meta_chirp->cols;
   strcpy(meta_chirp_fft->name, "chirp_fft");
 
   matrix* meta_match_fft = get_last_node(data);
-  meta_match_fft->data = malloc(meta_match->rows*sizeof(complex double));
-  complex double* match_fft = meta_match_fft->data;
-  meta_match_fft->rows = meta_chirp->rows;
-  meta_match_fft->cols = meta_chirp->cols;
+  meta_match_fft->data   = malloc(meta_match->rows*sizeof(complex double));
+  meta_match_fft->rows   = meta_chirp->rows;
+  meta_match_fft->cols   = meta_chirp->cols;
   strcpy(meta_match_fft->name, "match_fft");
 
-  fft_waveform(meta_chirp->rows, chirp, chirp_fft);
-  fft_waveform(meta_match->rows, match, match_fft);
+  fft_waveform(meta_chirp->rows, meta_chirp->data, meta_chirp_fft->data);
+  fft_waveform(meta_match->rows, meta_match->data, meta_chirp_fft->data);
 
   pulse_compress_signal(data, variables);
   

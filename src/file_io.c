@@ -20,10 +20,10 @@ int write_data(matrix* data_matrix, radar_variables* variables){
     ret = scanf("%c", &fmode);
   }while((fmode != 'h') && (fmode != 'b'));
  
-  int i,j;
   FILE* fp;
   FILE* dimensions;
   matrix* data_ptr = data_matrix;
+  
   char filename[255];
   dimensions = fopen("output/dimensions.dat", "w");
   while(data_ptr != NULL){
@@ -37,14 +37,15 @@ int write_data(matrix* data_matrix, radar_variables* variables){
       ret = fwrite(data_ptr->data, 1, data_ptr->rows*data_ptr->cols*sizeof(complex double), fp);
     }
     else{
-      for(i = 0; i < data_ptr->cols; i++){
-	for(j = 0; j < data_ptr->rows; j++){
-	  fprintf(fp, FILE_OUTPUT_PRECISION, creal(data_ptr->data[i*data_ptr->rows+j]));
-	  fprintf(fp, FILE_OUTPUT_PRECISION, cimag(data_ptr->data[i*data_ptr->rows+j]));
-	}
-	fprintf(fp, "\n");
+      for(int i = 0; i < data_ptr->cols; i++){
+        for(int j = 0; j < data_ptr->rows; j++){
+          fprintf(fp, FILE_OUTPUT_PRECISION, creal(data_ptr->data[i*data_ptr->rows+j]));
+          fprintf(fp, FILE_OUTPUT_PRECISION, cimag(data_ptr->data[i*data_ptr->rows+j]));
+        }
+        fprintf(fp, "\n");
       }
     }
+    
     fclose(fp);
 
     fprintf(dimensions, "%s\n%i\n%i\n", data_ptr->name, data_ptr->rows, data_ptr->cols);
@@ -69,7 +70,7 @@ int read_radar_file(matrix* data, radar_variables* variables){
   printf("Radar cols: ");
   ret = scanf("%u", &meta.cols);
 
-  meta.real_or_complex = 'r';
+  meta.is_complex = true;
 
   matrix* meta_radar = get_last_node(data);
   strcpy(meta_radar->name, "radar_image");
@@ -79,29 +80,23 @@ int read_radar_file(matrix* data, radar_variables* variables){
   memset(meta_radar->data, 0, meta.rows*meta.cols*sizeof(complex double));
   complex double* radar_image = meta_radar->data;
 
-  int i,j;
   unsigned int real;
   complex double imag;
-  if(meta.real_or_complex == 'r'){
-    for(j = 0; j < meta.cols; j++){
-      for(i = 0; i < meta.rows; i++){
+  if(!meta.is_complex){
+    for(int j = 0; j < meta.cols; j++){
+      for(int i = 0; i < meta.rows; i++){
 			  ret = fscanf(fp, "%u", &real);
 			  imag = real + _Complex_I*0;
 			  radar_image[j*meta.rows+i] = imag;
       }
     }
   }
-  else if(meta.real_or_complex == 'c'){
-    for(j = 0; j < meta.rows; j++){
-      for(i = 0; i < meta.rows*meta.cols; i++){
+  else{
+    for(int j = 0; j < meta.rows; j++){
+      for(int i = 0; i < meta.rows*meta.cols; i++){
         ret = fscanf(fp, "%lf", (double*)(  &radar_image[i*meta.rows+j]  ));
       }
     }
-  }
-  else{
-    printf("Invalid data mode, should be real or complex, read %c.\n", meta.real_or_complex);
-    fclose(fp);
-    return -1;
   }
 
   fclose(fp);

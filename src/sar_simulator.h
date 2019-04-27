@@ -17,43 +17,39 @@
 #include <string.h>
 #include <sys/time.h>
 #include <fftw3.h>
+#include <stdbool.h>
 
 typedef struct{
-  char real_or_complex;
+  bool         is_complex;
   unsigned int rows;
   unsigned int cols;
 }radar_metadata;
+
+typedef enum{
+  Simulate,
+  Process
+}mode_type;
 
 // Just as the data_arrays structure, this struct keeps variables during the simulation run which is passed to member functions.
 typedef struct{
   long unsigned int start_frequency;
   long unsigned int bandwidth;
-  unsigned int chirp_length;
-  unsigned int btproduct;
-  int altitude;
-  float beamwidth;
-  double signal_distance;
-  char mode;
-  char real_or_complex_simulation[2];
-  char radar_data_filename[255];
-  unsigned int k_filter_length;
-  unsigned int phi_filter_length;
+  unsigned int      chirp_length;
+  unsigned int      btproduct;
+  int               altitude;
+  float             beamwidth;
+  double            signal_distance;
+  mode_type         mode;
+  char              radar_data_filename[255];
 }radar_variables;
 
 typedef struct matrix{
   complex double* data;
-  unsigned int rows;
-  unsigned int cols;
-  char name[255];
-  struct matrix* next;
+  unsigned int    rows;
+  unsigned int    cols;
+  char            name[255];
+  struct matrix*  next;
 }matrix;
-
-// This is only used for the apodization step.
-typedef enum{
-  HANNING,
-  HAMMING,
-  BARTLETT
-}FILTER_TYPE;
 
 /* Function prototypes.
  * Although it may look messy, every function has the variables and data structure pointers as argument.

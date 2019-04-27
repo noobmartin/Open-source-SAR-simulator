@@ -2,7 +2,7 @@ function plot_simulation_data()
   delimiter = '\t';
 
   % Open up and parse dimensions file.
-  fp = fopen('dimensions.dat');
+  fp = fopen('../output/dimensions.dat');
   
   if(fp == -1)
       disp(strcat('Could not open dimensions.dat for reading - exiting.'));
@@ -25,7 +25,7 @@ function plot_simulation_data()
       end
       
       % Read file as a matrix.
-      fname = strcat(name, '.dat');
+      fname = strcat("../output/"+name, '.dat');
       rimg = dlmread(fname, delimiter);
             
       if(cols == 1)
