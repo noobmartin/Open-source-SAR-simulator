@@ -18,7 +18,7 @@
  */
 
 #include "sar_simulator.h"
-#include "cinsnowfilters.h"
+//#include "cinsnowfilters.h"
 
 int main(int argc, char** argv){
   radar_variables variables;
@@ -149,7 +149,7 @@ void process_data(matrix* data, radar_variables* variables){
   }while(1);
   if(pc == 'y'){
     printf("Running CinSnow filters ... ");
-    cinsnowfilters(data, variables);
+    //cinsnowfilters(data, variables);
     printf("done.\n");
   }
 

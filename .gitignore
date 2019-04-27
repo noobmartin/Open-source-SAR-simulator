@@ -1,2 +1,3 @@
 *.o
 sar_simulator
+*.dat
