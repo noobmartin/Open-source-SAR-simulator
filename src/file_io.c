@@ -12,53 +12,40 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-int write_data(matrix* data_matrix, radar_variables* variables){
-  char fmode = 0;
-  int ret = 0;
-
-  do{
-    fmode = getchar();
-  }while(fmode != '\n');
-
-  printf("Would you like to write data in human-readable or binary format (h/b): ");
-  do{
-    ret = scanf("%c", &fmode);
-  }while((fmode != 'h') && (fmode != 'b'));
- 
+void write_data(matrix* data_matrix, radar_variables* variables){
   FILE* fp;
   FILE* dimensions;
-  matrix* data_ptr = data_matrix;
   
   char filename[255];
   dimensions = fopen("output/dimensions.dat", "w");
-  while(data_ptr != NULL){
+  while(data_matrix != NULL){
     memset(filename, 0, 255);
-    strcat(filename, data_ptr->name);
+    strcat(filename, data_matrix->name);
     strcat(filename, ".dat");
+    
     fp = fopen(filename, "w");
-    if(fp == NULL)
+    if(fp == NULL){
       break;
-    if(fmode == 'b'){
-      ret = fwrite(data_ptr->data, 1, data_ptr->rows*data_ptr->cols*sizeof(complex double), fp);
     }
-    else{
-      for(int i = 0; i < data_ptr->cols; i++){
-        for(int j = 0; j < data_ptr->rows; j++){
-          fprintf(fp, FILE_OUTPUT_PRECISION, creal(data_ptr->data[i*data_ptr->rows+j]));
-          fprintf(fp, FILE_OUTPUT_PRECISION, cimag(data_ptr->data[i*data_ptr->rows+j]));
-        }
-        fprintf(fp, "\n");
+
+    for(int i = 0; i < data_matrix->cols; i++){
+      for(int j = 0; j < data_matrix->rows; j++){
+        fprintf(fp, FILE_OUTPUT_PRECISION, creal(data_matrix->data[i*data_matrix->rows+j]));
+        fprintf(fp, FILE_OUTPUT_PRECISION, cimag(data_matrix->data[i*data_matrix->rows+j]));
       }
+      fprintf(fp, "\n");
     }
     
     fclose(fp);
 
-    fprintf(dimensions, "%s\n%i\n%i\n", data_ptr->name, data_ptr->rows, data_ptr->cols);
+    fprintf(dimensions, "%s\n%i\n%i\n", data_matrix->name, data_matrix->rows, data_matrix->cols);
 
-    data_ptr = data_ptr->next;
+    data_matrix = data_matrix->next;
   }
+  
+  fclose(dimensions);
 
-  return 0;
+  return;
 }
 
 int read_radar_file(matrix* data, radar_variables* variables){

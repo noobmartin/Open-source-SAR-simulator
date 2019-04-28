@@ -9,9 +9,9 @@
 
 #include "common_types.h"
 
-int simulate(matrix* data_matrix, radar_variables* variables);
+void simulate(matrix* data_matrix, radar_variables* variables);
 void process_data(matrix* data_matrix, radar_variables* variables);
 void free_memory(matrix* data_matrix);
-void build_metadata(matrix* data, radar_variables* variables);
+void build_metadata(matrix* data);
 
 #endif

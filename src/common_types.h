@@ -22,7 +22,7 @@ typedef enum{
 typedef struct{
   long unsigned int start_frequency;
   long unsigned int bandwidth;
-  unsigned int      chirp_length;
+  unsigned long int chirp_length;
   unsigned int      btproduct;
   int               altitude;
   float             beamwidth;

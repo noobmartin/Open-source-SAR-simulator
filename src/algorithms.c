@@ -30,8 +30,6 @@ void gbp(matrix* data, radar_variables* variables){
   matrix* meta_sar_image = get_last_node(data);
   strcpy(meta_sar_image->name, "sar_image");
 
-  complex double* radar_image = meta_radar_image->data;
-
 	meta_sar_image->rows = meta_radar_image->rows;
 	meta_sar_image->cols = meta_radar_image->cols;
 	meta_sar_image->data = malloc(meta_sar_image->rows*meta_sar_image->cols*sizeof(double complex));
@@ -49,7 +47,7 @@ void gbp(matrix* data, radar_variables* variables){
       for(unsigned int l = 0; l < cols; l++){
 				range_index = sqrt((l-j)*(l-j)+k*k);
 				if(range_index < rows){
-					meta_sar_image->data[j*rows+k] += radar_image[l*rows+range_index];
+					meta_sar_image->data[j*rows+k] += meta_radar_image->data[l*rows+range_index];
 				}
       }
     }
@@ -363,10 +361,11 @@ void pulse_compress_image(matrix* data, radar_variables* variables){
   unsigned int filter_length = rows + kernel_length;
 
   fftw_complex* padded_kernel = fftw_malloc(filter_length*sizeof(fftw_complex));
-  fftw_complex* kernel_fft = fftw_malloc(filter_length*sizeof(fftw_complex));
-  fftw_complex* product = fftw_malloc(filter_length*sizeof(fftw_complex));
-  memset(padded_kernel, 0, filter_length*sizeof(fftw_complex));
-  memset(kernel_fft, 0, filter_length*sizeof(fftw_complex));
+  fftw_complex* kernel_fft    = fftw_malloc(filter_length*sizeof(fftw_complex));
+  fftw_complex* product       = fftw_malloc(filter_length*sizeof(fftw_complex));
+  
+  memset(padded_kernel, 0,     filter_length*sizeof(fftw_complex));
+  memset(kernel_fft,    0,     filter_length*sizeof(fftw_complex));
   memcpy(padded_kernel, match, kernel_length*sizeof(fftw_complex));
 
   // Normalize before FFT.

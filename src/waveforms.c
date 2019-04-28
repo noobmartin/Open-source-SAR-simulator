@@ -52,68 +52,69 @@ void chirp_generator(matrix* data, radar_variables* variables){
 	  return;
   }
 
-  double end_time   = (double)variables->btproduct/variables->bandwidth;
-  double chirp_rate = variables->bandwidth/(2*end_time);
-
+  double chirp_duration         = (double)variables->btproduct/variables->bandwidth;
+  double chirp_rate             = variables->bandwidth/(2*chirp_duration);
   unsigned int sample_frequency = 80*variables->bandwidth;
+  variables->chirp_length       = chirp_duration*sample_frequency;
+  variables->signal_distance    = chirp_duration*C;
 
-  unsigned long int time_steps = end_time*sample_frequency;
-  variables->chirp_length      = time_steps;
-  variables->signal_distance   = end_time*C;
-
-  printf("Chirp signal distance: %lfm\n", variables->signal_distance);
- 
+  printf("Chirp rate: %lf (Hz/s)\n",             chirp_rate);
+  printf("Sample frequency: %u (Hz)\n",        sample_frequency);
+  printf("Chirp samples: %lf\n",           variables->chirp_length);
+  printf("Uncompressed pulse resolution: %fm\n", variables->signal_distance);
+  
+  /* Allocate memory for the time vector and generate it. */
   matrix* meta_time_vector = get_last_node(data);
   strcpy(meta_time_vector->name, "time_vector");
-  meta_time_vector->rows = time_steps;
+  meta_time_vector->rows = variables->chirp_length;
   meta_time_vector->cols = 1;
-
-  complex double* chirp_time_vector = malloc(time_steps*sizeof(complex double));
-  meta_time_vector->data            = chirp_time_vector;
-
-  matrix* meta_chirp = get_last_node(data);
-  strcpy(meta_chirp->name, "chirp");
-  meta_chirp->rows = time_steps;
-  meta_chirp->cols = 1;
-
-  complex double* chirp = malloc(time_steps*sizeof(complex double));
-  meta_chirp->data      = chirp;
+  meta_time_vector->data = malloc(variables->chirp_length*sizeof(complex double));
 
   double last_time = 0;
-  for(int i = 0; i < end_time*sample_frequency; i++){
-    chirp_time_vector[i] = last_time;
+  for(int i = 0; i < chirp_duration*sample_frequency; i++){
+    meta_time_vector->data[i] = last_time;
     last_time += (double)1/sample_frequency;
   }
+  
+  /* Allocate memory for the chirp waveform and generate it. */
+  matrix* meta_chirp = get_last_node(data);
+  strcpy(meta_chirp->name, "chirp");
+  meta_chirp->rows = variables->chirp_length;
+  meta_chirp->cols = 1;
+  meta_chirp->data = malloc(variables->chirp_length*sizeof(complex double));
 
-  for(int i = 0; i < time_steps; i++){
-    double time = chirp_time_vector[i];
-    chirp[i] = cexp(_Complex_I*2*PI*(variables->start_frequency*time+chirp_rate*time*time));
+  for(int i = 0; i < variables->chirp_length; i++){
+    double time = meta_time_vector->data[i];
+    meta_chirp->data[i] = cexp(_Complex_I*2*PI*(variables->start_frequency*time+chirp_rate*time*time));
   }
   
-  printf("Uncompressed pulse resolution: %fm\n", variables->signal_distance);
 }
 
 void chirp_matched_generator(matrix* data, radar_variables* variables){
-  matrix* meta_chirp    = get_matrix(data, "chirp");
-  complex double* chirp = meta_chirp->data;
+  /* Performs the following operations:
+   * Chirp waveform -> FFT -> Complex conjucation -> Division by number of rows -> IFFT -> Matched chirp waveform
+   */
+  matrix* chirp    = get_matrix(data, "chirp");
   
-  matrix* meta_match = get_last_node(data);
-  meta_match->rows   = meta_chirp->rows;
-  meta_match->cols   = meta_chirp->cols;
-  strcpy(meta_match->name, "match");
-
-  complex double* match = malloc(meta_match->rows*sizeof(complex double));
-  meta_match->data = match;
-
-  complex double* chirpfft = malloc(meta_chirp->rows*sizeof(complex double));
-  fftw_plan chirpfftp = fftw_plan_dft_1d(meta_chirp->rows, chirp, chirpfft, FFTW_FORWARD, FFTW_ESTIMATE);
+  /* Execute FFT on the chirp waveform. */
+  complex double* chirpfft  = malloc(chirp->rows*sizeof(complex double));
+  fftw_plan       chirpfftp = fftw_plan_dft_1d(chirp->rows, chirp->data, chirpfft, FFTW_FORWARD, FFTW_ESTIMATE);
   fftw_execute(chirpfftp);
-
-  for(int z = 0; z < meta_chirp->rows; z++){
-    chirpfft[z] = conj(chirpfft[z])/meta_chirp->rows;
+ 
+  /* Complex-conjugate and divide by the number of rows. */
+  for(int z = 0; z < chirp->rows; z++){
+    chirpfft[z] = conj(chirpfft[z])/chirp->rows;
   }
 
-  fftw_plan matchedp = fftw_plan_dft_1d(meta_chirp->rows, chirpfft, match, FFTW_BACKWARD, FFTW_ESTIMATE);
+  /* Allocate memory for the matched waveform */
+  matrix* match = get_last_node(data);
+  match->rows   = chirp->rows;
+  match->cols   = chirp->cols;
+  strcpy(match->name, "match");
+  match->data = malloc(match->rows*sizeof(complex double));
+  
+  /* Execute IFFT to get the matched waveform. */
+  fftw_plan matchedp = fftw_plan_dft_1d(chirp->rows, chirpfft, match->data, FFTW_BACKWARD, FFTW_ESTIMATE);
   fftw_execute(matchedp);
 
   free(chirpfft);

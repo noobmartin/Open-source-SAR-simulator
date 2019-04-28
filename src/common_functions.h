@@ -6,5 +6,4 @@
 matrix* get_matrix(matrix* data, const char* name);
 matrix* get_last_node(matrix* data);
 
-
 #endif

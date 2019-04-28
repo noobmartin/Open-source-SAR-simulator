@@ -59,7 +59,7 @@ int main(int argc, char** argv){
 
   process_data(data, &variables);
   
-  build_metadata(data, &variables);
+  build_metadata(data);
 
   write_data(data, &variables);
  
@@ -82,7 +82,7 @@ void free_memory(matrix* data_matrix){
   }
 }
 
-int simulate(matrix* data, radar_variables* variables){
+void simulate(matrix* data, radar_variables* variables){
   chirp_generator(data, variables);
   chirp_matched_generator(data, variables);
  
@@ -112,7 +112,7 @@ int simulate(matrix* data, radar_variables* variables){
 
   radar_imager(data, variables);
 
-  return 0;
+  return;
 }
 
 void process_data(matrix* data, radar_variables* variables){
@@ -140,7 +140,7 @@ void process_data(matrix* data, radar_variables* variables){
   printf("done.\n");
 }
 
-void build_metadata(matrix* data, radar_variables* variables){
+void build_metadata(matrix* data){
   matrix* ptr = data->next;
   unsigned int elements = 0;
   while(ptr != NULL){

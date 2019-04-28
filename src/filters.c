@@ -9,7 +9,7 @@
 /* In the processing stages in the simulator, amplitudes may rise dangerously high and cause overflow if not compensated for.
  * This code simply normalizes the input image by the mean.  */
 void normalize_image(complex double* image, unsigned int rows, unsigned int cols){
-	double* colmeans = malloc(cols*sizeof(double));
+	double* colmeans = malloc(cols*sizeof(complex double));
 	double  rowmean  = 0;
 	double  mean     = 0;
 
@@ -27,6 +27,8 @@ void normalize_image(complex double* image, unsigned int rows, unsigned int cols
 	for(int i = 0; i < cols; i++){
 	  mean += colmeans[i];
 	}
+	
+	mean /= cols;
 
 	free(colmeans);
 
