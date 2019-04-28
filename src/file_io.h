@@ -5,7 +5,6 @@
 
 #define FILE_OUTPUT_PRECISION "%.10f\t"
 
-void write_data(matrix* data_matrix, radar_variables* variables);
-int read_radar_file(matrix* data_matrix, radar_variables* variables);
+void write_data(matrix* data_matrix);
 
 #endif

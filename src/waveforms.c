@@ -27,7 +27,7 @@ void fft_waveform(unsigned int kernel_length, double complex* kernel, double com
 
 }
 
-void chirp_generator(matrix* data, radar_variables* variables){
+void chirp_generator(matrix* time_vector, matrix* chirp, radar_variables* variables){
   printf("Chirp start frequency (Hz): ");
   int ret = scanf("%li", &variables->start_frequency);
 
@@ -52,49 +52,46 @@ void chirp_generator(matrix* data, radar_variables* variables){
 	  return;
   }
 
-  double chirp_duration         = (double)variables->btproduct/variables->bandwidth;
-  double chirp_rate             = variables->bandwidth/(2*chirp_duration);
-  unsigned int sample_frequency = 2*variables->bandwidth;
-  variables->chirp_length       = chirp_duration*sample_frequency;
-  variables->signal_distance    = chirp_duration*C;
+  double chirp_duration_s          = (double)variables->btproduct/variables->bandwidth;
+  double chirp_rate_hz_per_s       = variables->bandwidth/(chirp_duration_s);
+  unsigned int sample_frequency_hz = 2*variables->bandwidth;
+  double sample_period             = 1/(double)sample_frequency_hz;
+  variables->chirp_samples         = chirp_duration_s*sample_frequency_hz;
+  variables->signal_distance       = chirp_duration_s*C;
 
-  printf("Chirp rate: %lf (Hz/s)\n",             chirp_rate);
-  printf("Sample frequency: %u (Hz)\n",        sample_frequency);
-  printf("Chirp samples: %lf\n",           variables->chirp_length);
+  printf("Chirp duration: %f (s)\n",             chirp_duration_s);
+  printf("Chirp rate: %lf (Hz/s)\n",             chirp_rate_hz_per_s);
+  printf("Sample frequency: %u (Hz)\n",          sample_frequency_hz);
+  printf("Chirp samples: %lf\n",                 variables->chirp_samples);
   printf("Uncompressed pulse resolution: %fm\n", variables->signal_distance);
   
   /* Allocate memory for the time vector and generate it. */
-  matrix* meta_time_vector = get_last_node(data);
-  strcpy(meta_time_vector->name, "time_vector");
-  meta_time_vector->rows = variables->chirp_length;
-  meta_time_vector->cols = 1;
-  meta_time_vector->data = malloc(variables->chirp_length*sizeof(complex double));
+  time_vector->rows = variables->chirp_samples;
+  time_vector->cols = 1;
+  time_vector->data = malloc(variables->chirp_samples*sizeof(complex double));
 
   double last_time = 0;
-  for(int i = 0; i < chirp_duration*sample_frequency; i++){
-    meta_time_vector->data[i] = last_time;
-    last_time += (double)1/sample_frequency;
+  for(int i = 0; i < chirp_duration_s*sample_frequency_hz; i++){
+    time_vector->data[i] = last_time;
+    last_time += sample_period;
   }
   
   /* Allocate memory for the chirp waveform and generate it. */
-  matrix* meta_chirp = get_last_node(data);
-  strcpy(meta_chirp->name, "chirp");
-  meta_chirp->rows = variables->chirp_length;
-  meta_chirp->cols = 1;
-  meta_chirp->data = malloc(variables->chirp_length*sizeof(complex double));
+  chirp->rows = variables->chirp_samples;
+  chirp->cols = 1;
+  chirp->data = malloc(variables->chirp_samples*sizeof(complex double));
 
-  for(int i = 0; i < variables->chirp_length; i++){
-    double time = meta_time_vector->data[i];
-    meta_chirp->data[i] = cexp(_Complex_I*2*PI*(variables->start_frequency*time+chirp_rate*time*time));
+  for(int i = 0; i < variables->chirp_samples; i++){
+    double time = time_vector->data[i];
+    chirp->data[i] = cexp(_Complex_I*2*PI*(variables->start_frequency*time+chirp_rate_hz_per_s*time*time));
   }
   
 }
 
-void chirp_matched_generator(matrix* data, radar_variables* variables){
+void chirp_matched_generator(matrix* chirp, matrix* match){
   /* Performs the following operations:
    * Chirp waveform -> FFT -> Complex conjucation -> Division by number of rows -> IFFT -> Matched chirp waveform
    */
-  matrix* chirp    = get_matrix(data, "chirp");
   
   /* Execute FFT on the chirp waveform. */
   complex double* chirpfft  = malloc(chirp->rows*sizeof(complex double));
@@ -107,10 +104,8 @@ void chirp_matched_generator(matrix* data, radar_variables* variables){
   }
 
   /* Allocate memory for the matched waveform */
-  matrix* match = get_last_node(data);
   match->rows   = chirp->rows;
   match->cols   = chirp->cols;
-  strcpy(match->name, "match");
   match->data = malloc(match->rows*sizeof(complex double));
   
   /* Execute IFFT to get the matched waveform. */
@@ -123,9 +118,8 @@ void chirp_matched_generator(matrix* data, radar_variables* variables){
   fftw_destroy_plan(matchedp);
 }
 
-float calculate_compressed_pulse_resolution(matrix* data, radar_variables* variables){
-  matrix* meta_pc_waveform = get_matrix(data, "pulse_compressed_waveform");
-  double complex* waveform = meta_pc_waveform->data;
+float calculate_compressed_pulse_resolution(matrix* pc_waveform, radar_variables* variables){
+  double complex* waveform = pc_waveform->data;
 
   // Find maximum amplitude position
   int    max_position  = 0;
@@ -133,7 +127,7 @@ float calculate_compressed_pulse_resolution(matrix* data, radar_variables* varia
   int    low_index     = 0;
   int    high_index    = 0;
 
-  for(int i = 0; i < meta_pc_waveform->rows; i++){
+  for(int i = 0; i < pc_waveform->rows; i++){
     if( sqrt( pow(creal(waveform[i]), 2) + pow(cimag(waveform[i]),2) ) > max_amplitude){
       max_amplitude = waveform[i];
       max_position = i;
@@ -150,7 +144,7 @@ float calculate_compressed_pulse_resolution(matrix* data, radar_variables* varia
     }
   }
 
-  for(int i = max_position; i < variables->chirp_length; i++){
+  for(int i = max_position; i < variables->chirp_samples; i++){
     low_value = sqrt( pow(creal(waveform[i]), 2) + pow(cimag(waveform[i]),2));
     if( low_value <= half_amplitude){
 	    high_index = i;
@@ -158,5 +152,5 @@ float calculate_compressed_pulse_resolution(matrix* data, radar_variables* varia
     }
   }
 
-  return variables->signal_distance*(high_index-low_index)/meta_pc_waveform->rows;
+  return variables->signal_distance*(high_index-low_index)/pc_waveform->rows;
 }

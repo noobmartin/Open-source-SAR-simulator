@@ -13,21 +13,15 @@ typedef struct{
   unsigned int cols;
 }radar_metadata;
 
-typedef enum{
-  Simulate,
-  Process
-}mode_type;
-
 // Just as the data_arrays structure, this struct keeps variables during the simulation run which is passed to member functions.
 typedef struct{
   long unsigned int start_frequency;
   long unsigned int bandwidth;
-  unsigned long int chirp_length;
+  unsigned long int chirp_samples;
   unsigned int      btproduct;
   int               altitude;
   float             beamwidth;
   double            signal_distance;
-  mode_type         mode;
   char              radar_data_filename[255];
 }radar_variables;
 
@@ -36,7 +30,6 @@ typedef struct matrix{
   unsigned int    rows;
   unsigned int    cols;
   char            name[255];
-  struct matrix*  next;
 }matrix;
 
 #endif

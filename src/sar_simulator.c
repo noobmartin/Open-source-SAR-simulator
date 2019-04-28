@@ -27,95 +27,79 @@
 #include <string.h>
 #include <stdio.h>
 
+matrix time_vector;
+matrix chirp;
+matrix match;
+matrix pc_waveform;
+matrix scene;
+matrix radar_image;
+matrix pc_image;
+matrix sar_image;
+matrix sar_image_fft;
+matrix chirp_fft;
+matrix match_fft;
+radar_variables variables;
+  
 int main(int argc, char** argv){
-  radar_variables variables;
-  matrix* data = malloc(sizeof(matrix)); 
-  memset(data, 0, sizeof(matrix));
-  strcpy(data->name, "metadata");
-
-  printf("Do you wish to simulate or process radar data? (s/p): ");
+  strcpy(time_vector.name, "time_vector");
+  strcpy(chirp.name, "chirp");
+  strcpy(chirp_fft.name, "chirp_fft");
+  strcpy(match.name, "match");
+  strcpy(match_fft.name, "match_fft");
+  strcpy(radar_image.name, "radar_image");
+  strcpy(pc_image.name, "pc_image");
+  strcpy(sar_image.name, "sar_image");
+  strcpy(sar_image_fft.name, "sar_fft");
+  strcpy(scene.name, "scene");
+  strcpy(pc_waveform.name, "pulse_compressed_waveform");
   
-  if(getchar() == 'p'){
-    variables.mode = Process;
-    
-    printf("Please enter file name of raw data: ");
+  simulate();
 
-    if(scanf("%s", variables.radar_data_filename) == EOF){
-			printf("Invalid input detected, closing.\n");
-			return 0;
-    }
-
-    if(!read_radar_file(data, &variables)){
-			printf("Failed to read radar data, closing.\n");
-			return 0;
-    }
-
-  }
-  else{
-    variables.mode = Simulate;
-    
-    simulate(data, &variables);
-  }
-
-  process_data(data, &variables);
+  process_data();
   
-  build_metadata(data);
-
-  write_data(data, &variables);
+  write_data(&time_vector);
+  write_data(&chirp);
+  write_data(&match);
+  write_data(&pc_waveform);
+  write_data(&scene);
+  write_data(&radar_image);
+  write_data(&pc_image);
+  write_data(&sar_image);
+  write_data(&sar_image_fft);
+  write_data(&chirp_fft);
+  write_data(&match_fft);
  
-  //free_memory(data);
-
   return 0;
 }
 
-void free_memory(matrix* data_matrix){
-  matrix* ptr = data_matrix;
-  matrix* next = ptr->next;
-  while(ptr != NULL){
-    if(ptr->data != NULL){
-      free(ptr->data);
-    }
-
-		next = ptr->next;
-		free(ptr);
-		ptr = next;
-  }
-}
-
-void simulate(matrix* data, radar_variables* variables){
-  chirp_generator(data, variables);
-  chirp_matched_generator(data, variables);
- 
-  matrix* meta_chirp = get_matrix(data, "chirp");
-  matrix* meta_match = get_matrix(data, "match");
+void simulate(void){
+  chirp_generator(&time_vector, &chirp, &variables);
+  chirp_matched_generator(&chirp, &match);
   
-  matrix* meta_chirp_fft = get_last_node(data);
-  meta_chirp_fft->data   = malloc(meta_chirp->rows*sizeof(complex double));
-  meta_chirp_fft->rows   = meta_chirp->rows;
-  meta_chirp_fft->cols   = meta_chirp->cols;
-  strcpy(meta_chirp_fft->name, "chirp_fft");
+  chirp_fft.data   = malloc(chirp.rows*sizeof(complex double));
+  chirp_fft.rows   = chirp.rows;
+  chirp_fft.cols   = chirp.cols;
 
-  matrix* meta_match_fft = get_last_node(data);
-  meta_match_fft->data   = malloc(meta_match->rows*sizeof(complex double));
-  meta_match_fft->rows   = meta_chirp->rows;
-  meta_match_fft->cols   = meta_chirp->cols;
-  strcpy(meta_match_fft->name, "match_fft");
 
-  fft_waveform(meta_chirp->rows, meta_chirp->data, meta_chirp_fft->data);
-  fft_waveform(meta_match->rows, meta_match->data, meta_chirp_fft->data);
+  match_fft.data   = malloc(match.rows*sizeof(complex double));
+  match_fft.rows   = chirp.rows;
+  match_fft.cols   = chirp.cols;
 
-  pulse_compress_signal(data, variables);
+  fft_waveform(chirp.rows, chirp.data, chirp_fft.data);
+  fft_waveform(match.rows, match.data, chirp_fft.data);
+
+  pulse_compress_signal(&chirp, &match, &pc_waveform, &variables);
   
-  printf("Compressed pulse resolution: %lfm\n", calculate_compressed_pulse_resolution(data, variables));
+  printf("Compressed pulse resolution: %lfm\n", calculate_compressed_pulse_resolution(&pc_waveform, &variables));
 
-  insert_waveform_in_scene(data,variables);
+  insert_waveform_in_scene(&chirp, &scene, &variables);
 
-  radar_imager(data, variables);
+  radar_imager(&scene, &radar_image, &chirp, &variables);
 
   return;
 }
 
-void process_data(matrix* data, radar_variables* variables){
+void process_data(void){
   char pc = 0;
 
   printf("Do you want to enable pulse compression (y/n)? ");
@@ -129,23 +113,13 @@ void process_data(matrix* data, radar_variables* variables){
 
   if(pc == 'y'){
     printf("Pulse-compressing image ... ");
-    pulse_compress_image(data, variables);
+    pulse_compress_image(&radar_image, &pc_image, &match, &variables);
     printf("done.\n");
   }
   
-  gbp(data, variables);
+  gbp(&pc_image, &sar_image, &variables);
 
   printf("Generating 2D FFT of GBP image ... ");
-  gbp_fft(data, variables);
+  gbp_fft(&sar_image, &sar_image_fft, &variables);
   printf("done.\n");
-}
-
-void build_metadata(matrix* data){
-  matrix* ptr = data->next;
-  unsigned int elements = 0;
-  while(ptr != NULL){
-    elements++;
-    ptr = ptr->next;
-  }
-  data->data = malloc(elements*sizeof(complex double));
 }
