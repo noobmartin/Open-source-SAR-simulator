@@ -1,5 +1,5 @@
-CFLAGS=-O3 -fomit-frame-pointer -fstrict-aliasing -ffast-math -msse2 -march=native -mcmodel=medium -g
-LDFLAGS=-lfftw3 -lm
+CFLAGS=-O -fomit-frame-pointer -fstrict-aliasing -ffast-math -msse2 -march=native -mcmodel=medium -g -fsanitize=address
+LDFLAGS=-lfftw3 -lm -lasan -static-libasan
 
 all: sar_simulator
 

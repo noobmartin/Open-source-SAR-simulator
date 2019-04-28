@@ -54,7 +54,7 @@ void chirp_generator(matrix* data, radar_variables* variables){
 
   double chirp_duration         = (double)variables->btproduct/variables->bandwidth;
   double chirp_rate             = variables->bandwidth/(2*chirp_duration);
-  unsigned int sample_frequency = 80*variables->bandwidth;
+  unsigned int sample_frequency = 2*variables->bandwidth;
   variables->chirp_length       = chirp_duration*sample_frequency;
   variables->signal_distance    = chirp_duration*C;
 
