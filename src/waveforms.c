@@ -1,4 +1,16 @@
-#include "sar_simulator.h"
+/* Note to the reader:
+ * To use the standard "complex" data type in C, complex.h must be included
+ * before fftw3.h - otherwise a bunch of compiler warnings will arise.
+ */
+#include <complex.h>
+#include <fftw3.h>
+
+#include <math.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "common_functions.h"
+#include "waveforms.h"
 
 void fft_waveform(unsigned int kernel_length, double complex* kernel, double complex* output){
   for(int i = 0; i < kernel_length; i++){

@@ -3,7 +3,15 @@
  * Contact: alexander@rajula.org
  */
 
-#include "sar_simulator.h"
+#include <complex.h>
+#include <fftw3.h>
+#include <math.h>
+#include <string.h>
+#include <stdlib.h>
+
+#include "common_functions.h"
+#include "algorithms.h"
+#include "filters.h"
 
 /* GBP is the main SAR image formation (or de-skewness algorithm as I like to call it).
  * It focuses the hyperbolas which are a result of the stripmap radar scan into point-like objects with sidelobes.

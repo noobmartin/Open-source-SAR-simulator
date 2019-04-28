@@ -5,7 +5,12 @@
  * This code is ugly and really ought to be re-written.
  */
 
-#include "sar_simulator.h"
+#include "file_io.h"
+#include "common_functions.h"
+
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
 
 int write_data(matrix* data_matrix, radar_variables* variables){
   char fmode = 0;

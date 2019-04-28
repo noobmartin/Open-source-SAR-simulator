@@ -3,7 +3,7 @@ LDFLAGS=-lfftw3 -lm
 
 all: sar_simulator
 
-sar_simulator: waveforms.o file_io.o algorithms.o sar_simulator.o filters.o
+sar_simulator: waveforms.o file_io.o algorithms.o sar_simulator.o filters.o common_functions.o
 	${CC} $(wildcard obj/*.o) $(LDFLAGS) -o $@
 
 %.o: **/%.c

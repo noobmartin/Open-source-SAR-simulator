@@ -3,7 +3,8 @@
  * Contact: alexander@rajula.org
  */
 
-#include "sar_simulator.h"
+#include "filters.h"
+#include <stdlib.h>
 
 /* In the processing stages in the simulator, amplitudes may rise dangerously high and cause overflow if not compensated for.
  * This code simply normalizes the input image by the mean.  */

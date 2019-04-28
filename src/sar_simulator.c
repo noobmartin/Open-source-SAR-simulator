@@ -17,7 +17,15 @@
  * processing.
  */
 
+#include "common_functions.h"
 #include "sar_simulator.h"
+#include "file_io.h"
+#include "waveforms.h"
+#include "algorithms.h"
+
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
 
 int main(int argc, char** argv){
   radar_variables variables;
@@ -130,29 +138,6 @@ void process_data(matrix* data, radar_variables* variables){
   printf("Generating 2D FFT of GBP image ... ");
   gbp_fft(data, variables);
   printf("done.\n");
-}
-
-matrix* get_matrix(matrix* data, const char* name){
-  matrix* ptr = data;
-  while(ptr != NULL){
-    if( (strcmp(name, ptr->name) == 0) )
-      return ptr;
-    ptr = ptr->next;
-  }
-  return NULL;
-}
-
-matrix* get_last_node(matrix* data){
-  matrix* ptr = data;
-  do{
-    if(ptr->next == NULL)
-      break;
-    ptr = ptr->next;
-  }while(1);
-
-  ptr->next = malloc(sizeof(matrix));
-  memset(ptr->next, 0, sizeof(matrix));
-  return ptr->next;
 }
 
 void build_metadata(matrix* data, radar_variables* variables){
